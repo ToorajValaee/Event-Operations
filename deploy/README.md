@@ -10,16 +10,23 @@ The VPS currently uses `tehroonevents_app` (image `eventoperations-app:latest`) 
 - Image `ghcr.io/<owner>/event-operations:<commit-sha>`
 - No `container_name`; Compose generates a scoped name
 
-**Do not deploy yet** until the existing dependency Docker network is identified and a cutover plan is agreed. The old and new Traefik routes must not serve the same hostname simultaneously.
+**Do not deploy yet** until the existing application upload mount is mapped and a cutover plan is agreed. The old and new Traefik routes must not serve the same hostname simultaneously.
 
-### Discover existing backend network
-On the VPS run:
+### Confirmed Docker network topology
+The existing containers report:
+- `tehroonevents_app`: `tehrooneventsir_default`, `traefik-public`
+- `postgres`: `postgres_default`, `traefik-public`
+- `redis`: `redis_default`, `traefik-public`
+- `minio-minio-1`: `minio_default`, `traefik-public`
+
+**Only `traefik-public` is currently common to all four**. The new app joins that existing network to preserve the current database, Redis, and MinIO DNS connectivity. No extra backend network or new database stack is created.
+
+Security follow-up: move PostgreSQL, Redis and MinIO connectivity to a separate shared internal application network when practical. The current Traefik network is shared by numerous unrelated containers; make sure dependency ports are not publicly published.
+
+To identify the existing uploads mount, run:
 ```bash
-docker network ls
-docker inspect tehroonevents_app postgres redis minio-minio-1 --format '{{.Name}}: {{range $name, $settings := .NetworkSettings.Networks}}{{printf "%s " $name}}{{end}}'
 docker inspect tehroonevents_app --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
 ```
-Set `EVENTOPS_BACKEND_NETWORK` in `stack.env` to a network that contains PostgreSQL, Redis **and** MinIO. If no shared network exists, design an explicit dependency network or attach only the required containers to a new network after reviewing existing applications. Avoid connecting databases to the public-facing Traefik network.
 
 ### GitHub environments
 Create `staging` and `production` under Settings → Environments, ideally requiring approval for production. Add per-environment secrets:
