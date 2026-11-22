@@ -1,0 +1,42 @@
+name: event-operations-${DEPLOY_ENV:-production}
+
+services:
+  event-operations:
+    image: ${APP_IMAGE:?APP_IMAGE must be set by deployment script}
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "25m"
+        max-file: "5"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: traefik-public
+      traefik.http.routers.event-operations.rule: "Host(`tehroonevents.ir`) || Host(`www.tehroonevents.ir`)"
+      traefik.http.routers.event-operations.entrypoints: websecure
+      traefik.http.routers.event-operations.tls: "true"
+      traefik.http.routers.event-operations.tls.options: default
+      traefik.http.routers.event-operations.service: event-operations
+      traefik.http.services.event-operations.loadbalancer.server.port: "3000"
+
+networks:
+  traefik-public:
+    external: true
+    name: traefik-public
