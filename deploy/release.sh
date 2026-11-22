@@ -43,20 +43,22 @@ else
   fi
 
   echo "Checking published image $TAG"
-  docker pull "$TAG"
-  # RepoDigests is populated after an image is pulled from GHCR.
-  DIGESTS="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$TAG")"
-  TARGET=""
-  while IFS= read -r ref; do
-    if [[ "$ref" =~ ^ghcr\.io/toorajvalaee/event-operations@sha256:[0-9a-f]{64}$ ]]; then
-      TARGET="$ref"
-      break
+  # Docker prints the registry's authoritative manifest/index digest for this
+  # *specific pull*. Do not pick an arbitrary RepoDigest from a reused local
+  # image ID: that could refer to another tag or earlier publication.
+  PULL_OUTPUT="$(docker pull "$TAG")"
+  printf '%s\n' "$PULL_OUTPUT"
+  DIGEST=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^Digest:[[:space:]]sha256:([0-9a-f]{64})[[:space:]]*$ ]]; then
+      DIGEST="${BASH_REMATCH[1]}"
     fi
-  done <<< "$DIGESTS"
-  [[ -n "$TARGET" ]] || {
-    echo "Could not resolve a trusted GHCR digest for $TAG" >&2
+  done <<< "$PULL_OUTPUT"
+  [[ -n "$DIGEST" ]] || {
+    echo "Could not resolve published GHCR digest for $TAG from pull output" >&2
     exit 1
   }
+  TARGET="$REPO@sha256:$DIGEST"
 fi
 
 if [[ -n "$CURRENT" && "$CURRENT" == "$TARGET" ]]; then
