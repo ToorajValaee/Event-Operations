@@ -10,7 +10,7 @@ The VPS currently uses `tehroonevents_app` (image `eventoperations-app:latest`) 
 - Image `ghcr.io/<owner>/event-operations:<commit-sha>`
 - No `container_name`; Compose generates a scoped name
 
-**Do not deploy yet** until the existing application upload mount is mapped and a cutover plan is agreed. The old and new Traefik routes must not serve the same hostname simultaneously.
+**Do not deploy yet** until any files inside the unmounted existing container are backed up and a cutover plan is agreed. The old and new Traefik routes must not serve the same hostname simultaneously.
 
 ### Confirmed Docker network topology
 The existing containers report:
@@ -23,10 +23,16 @@ The existing containers report:
 
 Security follow-up: move PostgreSQL, Redis and MinIO connectivity to a separate shared internal application network when practical. The current Traefik network is shared by numerous unrelated containers; make sure dependency ports are not publicly published.
 
-To identify the existing uploads mount, run:
+The inspection of `.Mounts` for `tehroonevents_app` returned **empty**, meaning no Docker bind mounts or volumes are present. Check whether the container writable layer holds data:
 ```bash
-docker inspect tehroonevents_app --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
+docker exec tehroonevents_app sh -c 'ls -lah /app/data 2>/dev/null; du -sh /app/data 2>/dev/null'
 ```
+If files are present, create the new persistent directory and copy them **before** cutting over:
+```bash
+mkdir -p /opt/event-operations/production/data
+docker cp tehroonevents_app:/app/data/. /opt/event-operations/production/data/
+```
+Check for other writable application directories and preserve relevant uploads as well. Never remove the old container before verifying the copied data.
 
 ### GitHub environments
 Create `staging` and `production` under Settings → Environments, ideally requiring approval for production. Add per-environment secrets:
@@ -42,7 +48,7 @@ CI builds the checked-out Git ref, runs `npm ci` and `npm run lint`, publishes c
 ### Server configuration
 Install Docker and Docker Compose plugin and `flock`. Create `/opt/event-operations/production` with `stack.env` and `.env.prod` owned by deploy user (mode 600). Files `compose.yml` and `release.sh` are uploaded by the workflow. Never commit secrets. Preserve real production values in the existing server `.env.prod` and copy securely; rotate passwords accidentally disclosed elsewhere.
 
-**IMPORTANT uploads:** The old container uses `./data:/app/data`. Determine the existing host path with `docker inspect`, back it up, and migrate/copy or mount that exact path so no uploads disappear. The example new mount `./data` is not an automatic migration.
+**IMPORTANT uploads:** The existing production container has **no mounts**. Any existing files in `/app/data` live in the container writable layer. Before the first deploy, inspect and copy those files to `/opt/event-operations/production/data`, verify permissions and ownership, and confirm no other directories require migration. The new Compose bind-mounts this directory to `/app/data`.
 
 ### Deployment / rollback
 Run **Actions → Manual Deploy**, choose production and the desired branch/tag/SHA. Workflow pulls the app-only image and health-checks `/api/health`. On failure it tries the previous *successfully deployed* image. Manual rollback accepts a full 40-char commit SHA from a previously pushed image. Both operations leave PostgreSQL/Redis/MinIO containers untouched.
