@@ -108,26 +108,16 @@ jobs:
           test -r /opt/event-operations/production/release.sh
           echo "VPS runner preflight passed"
 
-      - name: Authenticate to GHCR using temporary credentials
+      - name: Pull and deploy on VPS (temporary GHCR credentials)
         shell: bash
         env:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          IMAGE: ${{ needs.build.outputs.image }}
         run: |
           set -Eeuo pipefail
           umask 077
           export DOCKER_CONFIG="$(mktemp -d)"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-          # Authenticate and pull on the runner; the release script pulls again using the
-          # preconfigured VPS Docker credential store. Install a read-only GHCR login once
-          # for the deploy user on the VPS before the first deployment.
-          docker pull "ghcr.io/toorajvalaee/event-operations:${GITHUB_SHA,,}"
-
-      - name: Deploy and verify application health
-        shell: bash
-        env:
-          IMAGE: ${{ needs.build.outputs.image }}
-        run: |
-          set -Eeuo pipefail
           bash /opt/event-operations/production/release.sh "$IMAGE" production
