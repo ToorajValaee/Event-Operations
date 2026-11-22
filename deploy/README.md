@@ -1,85 +1,118 @@
-# Event Operations — manually triggered VPS deployments
+# Event Operations — manual GHCR deployment with a VPS runner
 
-This matches the actual `Event-Operations` repository: React/Vite frontend bundled with an Express server in a **single Node.js application image**. The existing PostgreSQL, Redis and MinIO containers are **not** created, restarted or modified by the new Compose file.
+The production application is **one Node.js / Express + React/Vite image**. PostgreSQL, Redis, MinIO and Traefik already exist on the VPS and are **not** recreated by this CI/CD change.
 
-## Important: existing production
-The VPS currently uses `tehroonevents_app` (image `eventoperations-app:latest`) and external Traefik network `traefik-public`, routing `tehroonevents.ir` and `www.tehroonevents.ir` to container port 3000. New convention:
-- Compose project `event-operations-production`
-- Compose service `event-operations`
-- Traefik router and service `event-operations`
-- Image `ghcr.io/<owner>/event-operations:<commit-sha>`
-- No `container_name`; Compose generates a scoped name
+## Workflow architecture
 
-**Do not deploy yet** until any files inside the unmounted existing container are backed up and a cutover plan is agreed. The old and new Traefik routes must not serve the same hostname simultaneously.
+- `Manual Deploy`: `build` uses `ubuntu-latest` (checkout, npm type-check, Docker Buildx, publish immutable SHA image to GHCR). Default `build_only: true` does not use the VPS.
+- With `build_only: false`, `deploy` uses `[self-hosted, linux, x64, eventops-deploy]` and the protected `production` environment. It **does not check out source code or run third-party Actions on the VPS**. It executes the locally installed, reviewed `release.sh` and Compose configuration. The GHCR read token is used with a temporary Docker config that is removed when the job finishes.
+- `VPS Runner Preflight`: manually invoked, checks Docker, existing Traefik network and configuration files but does not start or stop containers.
+- `Manual Rollback`: runs on the same VPS runner; re-deploys an immutable previously published SHA image.
+- Shared `concurrency` prevents deployment/rollback workflow runs from overlapping. All triggers are `workflow_dispatch` only. All paths require running the workflow on `main`.
 
-### Confirmed Docker network topology
-The existing containers report:
-- `tehroonevents_app`: `tehrooneventsir_default`, `traefik-public`
-- `postgres`: `postgres_default`, `traefik-public`
-- `redis`: `redis_default`, `traefik-public`
-- `minio-minio-1`: `minio_default`, `traefik-public`
+No inbound SSH from GitHub is needed. The runner connects **outbound** over HTTPS. GitHub secrets `DEPLOY_HOST`, `DEPLOY_PORT`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and `DEPLOY_SSH_KNOWN_HOSTS` are no longer used by these workflows; remove them after confirming the transition.
 
-**Only `traefik-public` is currently common to all four**. The new app joins that existing network to preserve the current database, Redis, and MinIO DNS connectivity. No extra backend network or new database stack is created.
+## SECURITY GATE — read before registering a VPS runner
 
-Security follow-up: move PostgreSQL, Redis and MinIO connectivity to a separate shared internal application network when practical. The current Traefik network is shared by numerous unrelated containers; make sure dependency ports are not publicly published.
+**This repository is public.** GitHub advises against persistent self-hosted runners on public repositories because untrusted workflow changes/PRs can lead to compromise. The `deploy` user belongs to the Docker group and consequently has **root-equivalent control of this production VPS**. Using a persistent runner on the same production host is therefore a serious security risk, despite the minimal deployment job and environment controls.
 
-The inspection of `.Mounts` for `tehroonevents_app` returned **empty**, meaning no Docker bind mounts or volumes are present. The follow-up check on 2026-11-22 showed `/app/data` contains only `.` and `..` (4 KiB): no files in that directory to migrate. Other writable paths are not yet audited. To recheck before cutover:
+**Preferred:** move this repository to private with strict contributor/branch permissions, OR use a separate, isolated machine/VM as the runner that can connect to a tightly controlled deployment endpoint. Use protected `main`, CODEOWNERS for `.github/workflows/**` and `deploy/**`, production environment required reviewers, and **Deployment branches and tags = selected branches → main**. Disable unnecessary Actions and fork workflow permissions. Do **not** permit untrusted PR workflows to target a production runner. For more stringent security use ephemeral, independently isolated runners instead of a persistent runner.
+
+These precautions reduce risk but **do not make a public-repository production runner fully isolated or safe**. Do not install this on a production host until you accept and mitigate that risk.
+
+## Install runner (VPS, after approving this security model)
+
+GitHub repository → **Settings → Actions → Runners → New self-hosted runner** → Linux / x64.
+
+Use the **exact versioned download URL and SHA-256 checksum generated by GitHub**, not an arbitrary runner binary URL. As the `deploy` user:
+
 ```bash
-docker exec tehroonevents_app sh -c 'ls -lah /app/data 2>/dev/null; du -sh /app/data 2>/dev/null'
+mkdir -p /home/deploy/actions-runner
+cd /home/deploy/actions-runner
+# Perform GitHub's official download/extract/checksum instructions here.
+# Perform GitHub's ./config.sh registration command, adding:
+#   --name eventops-vps-prod --labels eventops-deploy --unattended
+# Do not paste the short-lived registration token into chat or into this repository.
 ```
-If files are added before cutover, create the new persistent directory and copy them **before** switching traffic:
+
+The exact `config.sh` command from GitHub supplies the URL and registration token. If needed add `--labels eventops-deploy` to that command. Accept the default work folder. Verify the runner appears **Online** with labels `self-hosted`, `Linux`, `X64`, `eventops-deploy`.
+
+After configuration, install the runner as a service (as root):
+
 ```bash
-mkdir -p /opt/event-operations/production/data
-docker cp tehroonevents_app:/app/data/. /opt/event-operations/production/data/
+cd /home/deploy/actions-runner
+sudo ./svc.sh install deploy
+sudo ./svc.sh start
+sudo ./svc.sh status
 ```
-Check for other writable application directories and preserve relevant uploads as well. Never remove the old container before verifying the copied data.
 
-### GitHub environments
-Create `production` under Settings → Environments, ideally requiring approval. Staging is intentionally disabled until it has a separate hostname, VPS configuration and credentials. Add per-environment secrets:
-- `DEPLOY_HOST`: VPS hostname or IP (production supplied: `185.192.113.199`)
-- `DEPLOY_PORT`: SSH port (production supplied: `14978`)
-- `DEPLOY_USER`: dedicated deploy user (root was supplied; a dedicated account is strongly preferable)
-- `DEPLOY_SSH_KEY`: dedicated SSH private key, entered in GitHub Secrets **not in chat**
-- `DEPLOY_SSH_KNOWN_HOSTS`: verified host public-key entry for `[185.192.113.199]:14978`
-- `GHCR_USERNAME`, `GHCR_READ_TOKEN`: account/credential with package read access.
+The service should run as `deploy`, not root. Do not use the runner for application build/test jobs and do not grant it broader repository/organization access. Keep it patched. If GitHub disallows public-repository self-hosted runners, **do not weaken security settings casually**; prefer moving to a private repository or isolated runner.
 
-CI builds the checked-out Git ref, runs `npm ci` and `npm run lint`, publishes commit-SHA-tagged images to GHCR with ephemeral GitHub package-write permission. No push trigger. Production is explicitly invoked using **Actions → Manual Deploy**. **First choose `build_only: true` (the default)** to validate checkout/build/registry publication without any VPS SSH or Compose changes. Choose `build_only: false` only for the planned cutover.
+## Prepare deployment files on VPS
 
-### Server configuration
-Install Docker and Docker Compose plugin and `flock`. Create `/opt/event-operations/production` with `stack.env` and `.env.prod` owned by deploy user (mode 600). Files `compose.yml` and `release.sh` are uploaded by the workflow. Never commit secrets. Preserve real production values in the existing server `.env.prod` and copy securely; rotate passwords accidentally disclosed elsewhere.
+The existing directory `/opt/event-operations/production` already contains mode-600 `.env.prod`, `stack.env`, and `data/`. Never overwrite `.env.prod` with a template or commit production credentials. The deployment script expects **two additional files installed manually from this reviewed revision**:
 
-**IMPORTANT uploads:** The existing production container has **no mounts**. Any existing files in `/app/data` live in the container writable layer. Before the first deploy, inspect and copy those files to `/opt/event-operations/production/data`, verify permissions and ownership, and confirm no other directories require migration. The new Compose bind-mounts this directory to `/app/data`.
+```
+/opt/event-operations/production/compose.yml
+/opt/event-operations/production/release.sh
+```
 
-### First-deployment preflight (no production changes)
-1. Merge this PR only after reviewing it. Manual GitHub Actions workflows must exist on the default branch to show a **Run workflow** button.
-2. Run **Actions → Manual Deploy** with `build_only: true` and `ref_to_deploy: main`; verify `build` succeeds and `deploy` is skipped. Check the commit-SHA image in GHCR. If build fails, do not proceed.
-3. Confirm the deploy account can run `docker ps` and `docker compose version`. Verify `/opt/event-operations/production` is writable, that `.env.prod` contains the real application credentials copied securely from the existing deployment, and that `stack.env` exists (`chmod 600` both).
-4. Snapshot/back up PostgreSQL, object storage and the existing container configuration before cutover. Confirm `/app/data` is still empty, and audit other writable paths.
-5. Record old container state with `docker inspect tehroonevents_app`, and determine how its container will be managed; any external orchestrator may restart it after a manual stop.
-6. Test `docker login ghcr.io` (using a read-only credential). Do not expose tokens in terminal history.
+After merging, from a trusted local checkout of `main` on **your Windows PC**, copy them through the working external SSH port (this is one-time setup, not part of GitHub Actions):
 
-### First production cutover (requires a maintenance window)
-Existing container `tehroonevents_app` advertises the SAME production hostnames. The release script **refuses to start** if this container is running so that Traefik cannot race between the old and new routers. Stop and disable auto-restart for the legacy container only after confirming a healthy build and explicit rollback plan:
+```powershell
+scp -i "$HOME\.ssh\eventops_deploy" -P 14978 deploy/compose.yml deploy/release.sh deploy@185.192.113.199:/opt/event-operations/production/
+```
+
+On the VPS:
+
 ```bash
-docker update --restart=no tehroonevents_app
-docker stop tehroonevents_app
+chmod 750 /opt/event-operations/production/release.sh
+chmod 640 /opt/event-operations/production/compose.yml
+chmod 600 /opt/event-operations/production/.env.prod /opt/event-operations/production/stack.env
+docker network inspect traefik-public --format '{{.Name}}'
 ```
-Then manually trigger the workflow with `build_only: false`. Expect a brief downtime. If the first deployment fails, check logs and **stop any new replacement container before restoring the legacy container** to avoid duplicate Traefik routing:
+
+Review `compose.yml` and `release.sh` before installing them. **The VPS workflow intentionally does not download or replace these scripts**, so future deployment-script changes need a separately reviewed installation step. This avoids executing a freshly checked-out script with Docker privileges.
+
+The existing production app is `tehroonevents_app` (image `eventoperations-app:latest`). It is currently on `tehrooneventsir_default` and `traefik-public`; database `postgres`, Redis `redis`, and `minio-minio-1` are also on `traefik-public`. New Compose only attaches the application to that existing network, routes `tehroonevents.ir` and `www.tehroonevents.ir` via Traefik, and bind-mounts `./data` to `/app/data`.
+
+Existing legacy container had **no mounts** and `/app/data` was empty at last check. Recheck for uploads in other paths before first cutover.
+
+## GitHub configuration
+
+In repo **Settings → Environments → production**, require approval and restrict deployment branches/tags to `main`. Keep `GHCR_USERNAME` and `GHCR_READ_TOKEN` (with read:packages and package access) as production environment secrets. You may remove the five SSH connection secrets after the runner-based workflows have been verified.
+
+`GITHUB_TOKEN` handles build/push from the GitHub-hosted runner with `packages:write` scoped to that build job. GHCR authentication on the VPS lasts only as long as the deploy/rollback step. Existing manual GHCR login credentials are not required by the new workflow.
+
+## Safe verification and first production cutover
+
+1. Merge the PR only after reviewing it and setting production environment safeguards.
+2. Install and register the dedicated runner, and put the reviewed `compose.yml` and `release.sh` on the VPS.
+3. Execute **Actions → VPS Runner Preflight → Run workflow** (main). Confirm it succeeds **without changing the live app**.
+4. Execute **Actions → Manual Deploy** with `build_only: true` once. Confirm `build` passes and deploy is skipped.
+5. Confirm the currently running legacy app is backed up, `.env.prod` contains valid existing service configuration, the uploaded data paths are preserved, and PostgreSQL/MinIO have backups. The original app image is `eventoperations-app:latest`, not a prior GHCR rollback target.
+6. During a planned maintenance window, leave a working terminal session open. After ensuring an image was published, run:
+   ```bash
+   docker update --restart=no tehroonevents_app
+   docker stop tehroonevents_app
+   ```
+7. Invoke **Manual Deploy** with `build_only: false`, environment `production`, branch `main`. The VPS runner executes the app release and health check. Expect possible downtime for a single replica.
+8. Verify `docker ps`, `docker logs`, `https://tehroonevents.ir/api/health`, and a real sign-in flow.
+
+**First release recovery:** `release.sh` rejects cutover if legacy `tehroonevents_app` is running; there is **no previous GHCR image** for the very first release. If deployment fails, stop the new app first, then restore the old one:
+
 ```bash
 docker ps -aq --filter label=com.docker.compose.project=event-operations-production --filter label=com.docker.compose.service=event-operations | xargs -r docker stop
 docker start tehroonevents_app
 docker update --restart=unless-stopped tehroonevents_app
 ```
-**Important:** An old Compose management process or external UI may recreate/restart the legacy container, so verify your server's actual source of orchestration before cutover. Never remove it before validating the replacement. Also consider using a temporary non-production hostname and testing the image behind Traefik before the cutover.
 
-### Deployment / rollback
-Run **Actions → Manual Deploy**, choose production and the desired branch/tag/SHA. Workflow pulls the app-only image and health-checks `/api/health`. On failure it tries the previous *successfully deployed* image. Manual rollback accepts a full 40-char commit SHA from a previously pushed image. Both operations leave PostgreSQL/Redis/MinIO containers untouched.
+Subsequent rollback uses **Manual Rollback** with the full SHA of a previously published image. Image rollback does not reverse database migrations. Changing `JWT_SECRET` may sign out existing sessions.
 
-The **first deployment** has no previous-image record. Single-container releases can cause a brief interruption. Application image rollback does not roll back database schema or data. Coordinate any DB migrations and take backups.
+## Operations and cautions
 
-### Security
-- Use a dedicated deploy account rather than root when possible; Docker access remains root-equivalent.
-- Rotate any credentials that were pasted into chats or exposed in compose files; keep them exclusively on the VPS.
-- Do not expose Postgres, Redis or MinIO publicly; Traefik is the public HTTPS entrypoint.
-- The current repo uses `npm run lint` (TypeScript type check); add unit/integration tests.
-- Review and pin third-party actions to immutable commit SHAs before high-assurance production use.
+- **No open inbound SSH port for GitHub runners**; keep your own Windows-to-VPS SSH access for maintenance and first installation.
+- Container image tag is `ghcr.io/toorajvalaee/event-operations:<40-character-commit-SHA>`.
+- Keep your existing PostgreSQL/Redis/MinIO/Traefik containers and volumes; no destructive compose operations against them.
+- Production runs use a single app replica. Zero-downtime requires a separate blue/green plan.
+- A successful runner registration does not guarantee safe production deployment. Test network, app configuration, uploads, DB backups and rollback before proceeding.
