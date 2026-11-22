@@ -6,7 +6,7 @@ on:
         description: Target VPS environment
         required: true
         type: choice
-        options: [staging, production]
+        options: [production]
       build_only:
         description: Build and publish image without connecting to VPS
         required: true
