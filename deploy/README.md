@@ -23,11 +23,11 @@ The existing containers report:
 
 Security follow-up: move PostgreSQL, Redis and MinIO connectivity to a separate shared internal application network when practical. The current Traefik network is shared by numerous unrelated containers; make sure dependency ports are not publicly published.
 
-The inspection of `.Mounts` for `tehroonevents_app` returned **empty**, meaning no Docker bind mounts or volumes are present. Check whether the container writable layer holds data:
+The inspection of `.Mounts` for `tehroonevents_app` returned **empty**, meaning no Docker bind mounts or volumes are present. The follow-up check on 2026-11-22 showed `/app/data` contains only `.` and `..` (4 KiB): no files in that directory to migrate. Other writable paths are not yet audited. To recheck before cutover:
 ```bash
 docker exec tehroonevents_app sh -c 'ls -lah /app/data 2>/dev/null; du -sh /app/data 2>/dev/null'
 ```
-If files are present, create the new persistent directory and copy them **before** cutting over:
+If files are added before cutover, create the new persistent directory and copy them **before** switching traffic:
 ```bash
 mkdir -p /opt/event-operations/production/data
 docker cp tehroonevents_app:/app/data/. /opt/event-operations/production/data/
