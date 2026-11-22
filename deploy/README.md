@@ -35,7 +35,7 @@ docker cp tehroonevents_app:/app/data/. /opt/event-operations/production/data/
 Check for other writable application directories and preserve relevant uploads as well. Never remove the old container before verifying the copied data.
 
 ### GitHub environments
-Create `staging` and `production` under Settings → Environments, ideally requiring approval for production. Add per-environment secrets:
+Create `production` under Settings → Environments, ideally requiring approval. Staging is intentionally disabled until it has a separate hostname, VPS configuration and credentials. Add per-environment secrets:
 - `DEPLOY_HOST`: VPS hostname or IP (production supplied: `185.192.113.199`)
 - `DEPLOY_PORT`: SSH port (production supplied: `14978`)
 - `DEPLOY_USER`: dedicated deploy user (root was supplied; a dedicated account is strongly preferable)
@@ -43,12 +43,33 @@ Create `staging` and `production` under Settings → Environments, ideally requi
 - `DEPLOY_SSH_KNOWN_HOSTS`: verified host public-key entry for `[185.192.113.199]:14978`
 - `GHCR_USERNAME`, `GHCR_READ_TOKEN`: account/credential with package read access.
 
-CI builds the checked-out Git ref, runs `npm ci` and `npm run lint`, publishes commit-SHA-tagged images to GHCR with ephemeral GitHub package-write permission. No push trigger. Production is explicitly invoked using **Actions → Manual Deploy**.
+CI builds the checked-out Git ref, runs `npm ci` and `npm run lint`, publishes commit-SHA-tagged images to GHCR with ephemeral GitHub package-write permission. No push trigger. Production is explicitly invoked using **Actions → Manual Deploy**. **First choose `build_only: true` (the default)** to validate checkout/build/registry publication without any VPS SSH or Compose changes. Choose `build_only: false` only for the planned cutover.
 
 ### Server configuration
 Install Docker and Docker Compose plugin and `flock`. Create `/opt/event-operations/production` with `stack.env` and `.env.prod` owned by deploy user (mode 600). Files `compose.yml` and `release.sh` are uploaded by the workflow. Never commit secrets. Preserve real production values in the existing server `.env.prod` and copy securely; rotate passwords accidentally disclosed elsewhere.
 
 **IMPORTANT uploads:** The existing production container has **no mounts**. Any existing files in `/app/data` live in the container writable layer. Before the first deploy, inspect and copy those files to `/opt/event-operations/production/data`, verify permissions and ownership, and confirm no other directories require migration. The new Compose bind-mounts this directory to `/app/data`.
+
+### First-deployment preflight (no production changes)
+1. Merge this PR only after reviewing it. Manual GitHub Actions workflows must exist on the default branch to show a **Run workflow** button.
+2. Run **Actions → Manual Deploy** with `build_only: true` and `ref_to_deploy: main`; verify `build` succeeds and `deploy` is skipped. Check the commit-SHA image in GHCR. If build fails, do not proceed.
+3. Confirm the deploy account can run `docker ps` and `docker compose version`. Verify `/opt/event-operations/production` is writable, that `.env.prod` contains the real application credentials copied securely from the existing deployment, and that `stack.env` exists (`chmod 600` both).
+4. Snapshot/back up PostgreSQL, object storage and the existing container configuration before cutover. Confirm `/app/data` is still empty, and audit other writable paths.
+5. Record old container state with `docker inspect tehroonevents_app`, and determine how its container will be managed; any external orchestrator may restart it after a manual stop.
+6. Test `docker login ghcr.io` (using a read-only credential). Do not expose tokens in terminal history.
+
+### First production cutover (requires a maintenance window)
+Existing container `tehroonevents_app` advertises the SAME production hostnames. The release script **refuses to start** if this container is running so that Traefik cannot race between the old and new routers. Stop and disable auto-restart for the legacy container only after confirming a healthy build and explicit rollback plan:
+```bash
+docker update --restart=no tehroonevents_app
+docker stop tehroonevents_app
+```
+Then manually trigger the workflow with `build_only: false`. Expect a brief downtime. If the first deployment fails, check logs and manually restore the legacy container:
+```bash
+docker start tehroonevents_app
+docker update --restart=unless-stopped tehroonevents_app
+```
+**Important:** An old Compose management process or external UI may recreate/restart the legacy container, so verify your server's actual source of orchestration before cutover. Never remove it before validating the replacement. Also consider using a temporary non-production hostname and testing the image behind Traefik before the cutover.
 
 ### Deployment / rollback
 Run **Actions → Manual Deploy**, choose production and the desired branch/tag/SHA. Workflow pulls the app-only image and health-checks `/api/health`. On failure it tries the previous *successfully deployed* image. Manual rollback accepts a full 40-char commit SHA from a previously pushed image. Both operations leave PostgreSQL/Redis/MinIO containers untouched.
