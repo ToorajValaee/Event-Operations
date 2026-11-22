@@ -1,0 +1,51 @@
+name: Manual Rollback
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target VPS environment
+        required: true
+        type: choice
+        options: [staging, production]
+      image_sha:
+        description: Full 40-character Git commit SHA of a previously published image
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eventops-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate image SHA
+        env:
+          SHA: ${{ inputs.image_sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "Expected 40-character SHA"; exit 1; }
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
+      - name: Rollback to chosen image
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          SHA: ${{ inputs.image_sha }}
+        run: |
+          PORT="${PORT:-22}"
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${SHA,,}"
+          ssh -p "$PORT" "$USER@$HOST" "bash /opt/event-operations/$ENVIRONMENT/release.sh '$IMAGE' '$ENVIRONMENT'"
