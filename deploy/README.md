@@ -64,8 +64,9 @@ Existing container `tehroonevents_app` advertises the SAME production hostnames.
 docker update --restart=no tehroonevents_app
 docker stop tehroonevents_app
 ```
-Then manually trigger the workflow with `build_only: false`. Expect a brief downtime. If the first deployment fails, check logs and manually restore the legacy container:
+Then manually trigger the workflow with `build_only: false`. Expect a brief downtime. If the first deployment fails, check logs and **stop any new replacement container before restoring the legacy container** to avoid duplicate Traefik routing:
 ```bash
+docker ps -aq --filter label=com.docker.compose.project=event-operations-production --filter label=com.docker.compose.service=event-operations | xargs -r docker stop
 docker start tehroonevents_app
 docker update --restart=unless-stopped tehroonevents_app
 ```
