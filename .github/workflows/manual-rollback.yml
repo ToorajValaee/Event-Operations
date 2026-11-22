@@ -44,7 +44,13 @@ jobs:
         shell: bash
         env:
           SHA: ${{ inputs.image_sha }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
           set -Eeuo pipefail
+          umask 077
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
           IMAGE="ghcr.io/toorajvalaee/event-operations:${SHA,,}"
           bash /opt/event-operations/production/release.sh "$IMAGE" production
