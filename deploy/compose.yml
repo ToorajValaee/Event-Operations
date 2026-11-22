@@ -15,7 +15,6 @@ services:
       - ./data:/app/data
     networks:
       - traefik-public
-      - backend
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
       interval: 20s
@@ -41,6 +40,3 @@ networks:
   traefik-public:
     external: true
     name: traefik-public
-  backend:
-    external: true
-    name: ${EVENTOPS_BACKEND_NETWORK:?Set EVENTOPS_BACKEND_NETWORK to a Docker network shared with postgres, redis and minio}
