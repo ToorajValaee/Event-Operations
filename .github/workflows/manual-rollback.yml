@@ -6,7 +6,7 @@ on:
         description: Target VPS environment
         required: true
         type: choice
-        options: [staging, production]
+        options: [production]
       image_sha:
         description: Full 40-character Git commit SHA of a previously published image
         required: true
