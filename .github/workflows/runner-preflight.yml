@@ -1,0 +1,32 @@
+name: VPS Runner Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    # Only fixed shell commands. No checkout, build, third-party actions or production write.
+    runs-on: [self-hosted, linux, x64, eventops-deploy]
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: Verify dedicated VPS runner
+        shell: bash
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$WORKFLOW_REF" == "refs/heads/main" ]] || exit 1
+          test "$(id -un)" = deploy
+          docker info --format 'Docker server reachable: {{.ServerVersion}}'
+          docker compose version
+          command -v flock
+          test -r /opt/event-operations/production/.env.prod
+          test -r /opt/event-operations/production/stack.env
+          test -r /opt/event-operations/production/compose.yml
+          test -r /opt/event-operations/production/release.sh
+          docker network inspect traefik-public --format 'Traefik network: {{.Name}}'
+          echo "Runner is ready. No deployment performed."
