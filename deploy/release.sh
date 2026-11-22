@@ -18,6 +18,11 @@ PREVIOUS=""
 [[ -f current-image ]] && PREVIOUS="$(cat current-image)"
 compose() { docker compose --env-file stack.env -f compose.yml "$@"; }
 
+if [[ "$ENVIRONMENT" == "production" ]] && docker ps --format '{{.Names}}' | grep -Fxq tehroonevents_app; then
+  echo "CUTOVER BLOCKED: legacy tehroonevents_app is running. Schedule a cutover and stop it only after a tested image and rollback plan are ready." >&2
+  exit 1
+fi
+
 echo "Deploying $IMAGE"
 compose config --quiet
 compose pull event-operations
