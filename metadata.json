@@ -1,0 +1,6 @@
+{
+  "name": "سامانه رویدادها",
+  "description": "سامانه جامع مدیریت رویدادها، غرفه‌داران، گالری تصاویر، حامیان مالی و پیامک‌های هوشمند - قدرت گرفته از badje.ir",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

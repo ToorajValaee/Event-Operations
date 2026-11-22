@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>سامانه رویدادها</title>
+    <meta name="description" content="سامانه جامع مدیریت رویدادها، غرفه‌داران، گالری تصاویر، حامیان مالی و پیامک‌های هوشمند - قدرت گرفته از badje.ir" />
+    <meta property="og:title" content="سامانه رویدادها" />
+    <meta property="og:description" content="سامانه جامع مدیریت رویدادها، غرفه‌داران، گالری تصاویر، حامیان مالی و پیامک‌های هوشمند - قدرت گرفته از badje.ir" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- PWA & Mobile Web Capabilities -->
+    <meta name="theme-color" content="#1e293b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EventOps" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Persian Fonts: Dana Font (custom user font with fallback to Vazirmatn) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Client-side suppression for benign dev-server Vite websocket messages in sandboxed iframe -->
+    <script>
+      (function() {
+        var isViteLog = function(msg) {
+          return typeof msg === 'string' && (msg.indexOf('[vite]') !== -1 || msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1);
+        };
+        var origError = console.error;
+        console.error = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isViteLog(arguments[i])) return;
+          }
+          origError.apply(console, arguments);
+        };
+        var origWarn = console.warn;
+        console.warn = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isViteLog(arguments[i])) return;
+          }
+          origWarn.apply(console, arguments);
+        };
+        window.addEventListener('error', function(e) {
+          if (e && e.message && isViteLog(e.message)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body class="bg-[#fafafa] text-neutral-900 antialiased selection:bg-neutral-900 selection:text-white min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,68 @@
+# ==============================================================================
+# Production Docker Compose for tehroonevents.ir
+# Usage:
+#   1. Load your exported image on VPS:
+#        docker load -i tehroonevents.tar
+#   2. Ensure .env.prod exists in the same directory (see .env.prod.example)
+#   3. Start the application:
+#        docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#   4. View logs:
+#        docker compose -f docker-compose.prod.yml logs -f app
+# ==============================================================================
+
+services:
+  app:
+    # Use the pre-built image imported from your tar file
+    image: ${APP_IMAGE:-tehroonevents:latest}
+    container_name: tehroonevents_app
+    restart: unless-stopped
+
+    # Load production environment variables
+    env_file:
+      - .env.prod
+
+    # Port mapping:
+    # Exposes port 3000 to localhost on VPS so your Nginx/Caddy reverse proxy
+    # for https://tehroonevents.ir can route traffic to http://127.0.0.1:3000
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+
+    # Allows the container to access PostgreSQL, Redis, or MinIO
+    # if they are running directly on the VPS host using "host.docker.internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      - ./data:/app/data
+
+    # Optional: Mount custom fonts directory directly from host without rebuilding docker image
+    # volumes:
+    #   - ./fonts:/app/dist/fonts:ro
+
+    # Container healthcheck against backend API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Logging limits to protect VPS disk space
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "25m"
+        max-file: "5"
+
+    networks:
+      - app_network
+      # Uncomment if your existing PostgreSQL/Redis/MinIO is in an external Docker network:
+      # - vps_shared_network
+
+networks:
+  app_network:
+    driver: bridge
+
+  # If your existing services (Postgres, Redis, MinIO) are in an existing Docker network:
+  # vps_shared_network:
+  #   external: true

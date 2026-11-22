@@ -1,0 +1,244 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Dana', 'DanaFaNum', 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ==========================================================================
+   Dana & DanaFaNum Fonts Definition (Supporting all weights & variations)
+   ========================================================================== */
+
+/* 100 - Thin & Hairline */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Thin.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-Hairline.woff2') format('woff2'),
+       url('/fonts/Dana-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 200 - UltraLight */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-UltraLight.woff2') format('woff2'),
+       url('/fonts/Dana-UltraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 300 - Light */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Light.woff2') format('woff2'),
+       url('/fonts/Dana-Light.woff2') format('woff2'),
+       url('/fonts/danafanum-light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 400 - Regular */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Regular.woff2') format('woff2'),
+       url('/fonts/danafanum-regular.woff2') format('woff2'),
+       url('/fonts/Dana-Regular.woff2') format('woff2'),
+       url('/fonts/dana-regular.woff2') format('woff2'),
+       url('/fonts/Dana.woff2') format('woff2'),
+       url('/fonts/dana.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-Regular.woff') format('woff'),
+       url('/fonts/Dana-Regular.woff') format('woff'),
+       url('/fonts/DanaFaNum-Regular.ttf') format('truetype'),
+       url('/fonts/Dana-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 500 - Medium */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Medium.woff2') format('woff2'),
+       url('/fonts/danafanum-medium.woff2') format('woff2'),
+       url('/fonts/Dana-Medium.woff2') format('woff2'),
+       url('/fonts/dana-medium.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-Medium.woff') format('woff'),
+       url('/fonts/Dana-Medium.woff') format('woff'),
+       url('/fonts/DanaFaNum-Medium.ttf') format('truetype'),
+       url('/fonts/Dana-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 600 - DemiBold */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-DemiBold.woff2') format('woff2'),
+       url('/fonts/danafanum-demibold.woff2') format('woff2'),
+       url('/fonts/Dana-DemiBold.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-DemiBold.woff') format('woff'),
+       url('/fonts/DanaFaNum-DemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 700 - Bold */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Bold.woff2') format('woff2'),
+       url('/fonts/danafanum-bold.woff2') format('woff2'),
+       url('/fonts/Dana-Bold.woff2') format('woff2'),
+       url('/fonts/dana-bold.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-Bold.woff') format('woff'),
+       url('/fonts/Dana-Bold.woff') format('woff'),
+       url('/fonts/DanaFaNum-Bold.ttf') format('truetype'),
+       url('/fonts/Dana-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 800 - ExtraBold */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-ExtraBold.woff2') format('woff2'),
+       url('/fonts/danafanum-extrabold.woff2') format('woff2'),
+       url('/fonts/Dana-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 900 - Black & Heavy */
+@font-face {
+  font-family: 'Dana';
+  src: url('/fonts/DanaFaNum-Black.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-Heavy.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-ExtraBlack.woff2') format('woff2'),
+       url('/fonts/DanaFaNum-fat.woff2') format('woff2'),
+       url('/fonts/Dana-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Alias DanaFaNum family directly as well */
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DanaFaNum';
+  src: url('/fonts/DanaFaNum-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Dana', 'DanaFaNum', 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: normal;
+}
+
+body {
+  font-family: 'Dana', 'DanaFaNum', 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  direction: rtl;
+  text-align: right;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+/* Mobile Touch & Native App Ergonomics */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding utilities for mobile notches & home bars */
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+/* Prevent accidental text selection on native app controls */
+.touch-control {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Iranian number formatting helper if desired */
+.persian-nums {
+  font-feature-settings: "ss01";
+}
+
+/* Print styles for Event Catalog Export */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-catalog, #printable-catalog * {
+    visibility: visible;
+  }
+  #printable-catalog {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Marquee scrolling animation for Sponsors Carousel */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(33.333%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.mask-fade-edges {
+  mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+}
